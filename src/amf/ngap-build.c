@@ -312,6 +312,8 @@ ogs_pkbuf_t *ngap_build_downlink_nas_transport(
     NGAP_UEAggregateMaximumBitRate_t *UEAggregateMaximumBitRate = NULL;
     NGAP_AllowedNSSAI_t *AllowedNSSAI = NULL;
 
+    NGAP_UECapabilityInfoRequest_t *UECapabilityInfoRequest = NULL;
+
     ogs_assert(gmmbuf);
     ogs_assert(ran_ue);
     amf_ue = amf_ue_find_by_id(ran_ue->amf_ue_id);
@@ -439,6 +441,21 @@ ogs_pkbuf_t *ngap_build_downlink_nas_transport(
 
             ASN_SEQUENCE_ADD(&AllowedNSSAI->list, NGAP_AllowedNSSAI_Item);
         }
+    }
+
+    // Modified by borieher: Add UE Capability Info Request IE
+    // Workaround: using ue_ambr and allowed_nssai to mark the first
+    // Downlink NAS Transport message being sent to the UE
+    if (ue_ambr && allowed_nssai) {
+	ie = CALLOC(1, sizeof(NGAP_DownlinkNASTransport_IEs_t));
+	ASN_SEQUENCE_ADD(&DownlinkNASTransport->protocolIEs, ie);
+
+	ie->id = NGAP_ProtocolIE_ID_id_UECapabilityInfoRequest;
+	ie->criticality = NGAP_Criticality_ignore;
+	ie->value.present = NGAP_DownlinkNASTransport_IEs__value_PR_UECapabilityInfoRequest;
+
+	UECapabilityInfoRequest = &ie->value.choice.UECapabilityInfoRequest;
+        *UECapabilityInfoRequest = NGAP_UECapabilityInfoRequest_requested;
     }
 
     return ogs_ngap_encode(&pdu);
