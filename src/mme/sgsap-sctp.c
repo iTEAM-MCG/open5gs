@@ -118,10 +118,13 @@ static void recv_handler(ogs_sock_t *sock)
             if (not->sn_assoc_change.sac_state == SCTP_COMM_UP) {
                 ogs_debug("SCTP_COMM_UP");
 
-                sgsap_event_push(MME_EVENT_SGSAP_LO_SCTP_COMM_UP,
-                        sock, NULL, NULL,
-                        not->sn_assoc_change.sac_inbound_streams,
-                        not->sn_assoc_change.sac_outbound_streams);
+                if ((not->sn_assoc_change.sac_outbound_streams-1) >= 1) {
+                    /* NEXT_ID(MAX >= MIN) */
+                    sgsap_event_push(MME_EVENT_SGSAP_LO_SCTP_COMM_UP,
+                            sock, NULL, NULL,
+                            not->sn_assoc_change.sac_inbound_streams,
+                            not->sn_assoc_change.sac_outbound_streams);
+                }
             } else if (not->sn_assoc_change.sac_state == SCTP_SHUTDOWN_COMP ||
                     not->sn_assoc_change.sac_state == SCTP_COMM_LOST) {
 
@@ -180,14 +183,8 @@ static void recv_handler(ogs_sock_t *sock)
         sgsap_event_push(MME_EVENT_SGSAP_MESSAGE, sock, NULL, pkbuf, 0, 0);
         return;
     } else {
-        if (ogs_socket_errno != OGS_EAGAIN) {
-            ogs_fatal("ogs_sctp_recvmsg(%d) failed(%d:%s-0x%x)",
-                    size, errno, strerror(errno), flags);
-            ogs_assert_if_reached();
-        } else {
-            ogs_error("ogs_sctp_recvmsg(%d) failed(%d:%s-0x%x)",
-                    size, errno, strerror(errno), flags);
-        }
+        ogs_error("ogs_sctp_recvmsg(%d) failed(%d:%s-0x%x)",
+                size, errno, strerror(errno), flags);
     }
     ogs_pkbuf_free(pkbuf);
 }
