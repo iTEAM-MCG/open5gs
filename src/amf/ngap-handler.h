@@ -84,6 +84,9 @@ void ngap_handle_ng_reset(
 void ngap_handle_error_indication(
         amf_gnb_t *gnb, ogs_ngap_message_t *message);
 
+void ngap_handle_ue_radio_capability_check_response(
+        amf_gnb_t *gnb, ogs_ngap_message_t *message);
+
 #ifdef __cplusplus
 }
 #endif

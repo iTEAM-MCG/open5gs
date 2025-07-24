@@ -1162,6 +1162,10 @@ void ngap_handle_initial_context_setup_response(
 
         AMF_UE_CLEAR_PAGING_INFO(amf_ue);
     }
+
+    // Modified by borieher: Send UE Radio Capability Check request
+    // Workaround: using the Initial Context Setup response handler as trigger
+    ngap_send_ue_radio_capability_check_request(gnb, ran_ue);
 }
 
 void ngap_handle_initial_context_setup_failure(
@@ -4800,4 +4804,118 @@ void ngap_handle_error_indication(amf_gnb_t *gnb, ogs_ngap_message_t *message)
         ogs_warn("    Cause[Group:%d Cause:%d]",
                 Cause->present, (int)Cause->choice.radioNetwork);
     }
+}
+
+// Handle UE Radio Capability Check response implementation
+void ngap_handle_ue_radio_capability_check_response(
+        amf_gnb_t *gnb, ogs_ngap_message_t *message)
+{
+    char buf[OGS_ADDRSTRLEN];
+    int i, r;
+
+    //amf_ue_t *amf_ue = NULL;
+    uint64_t amf_ue_ngap_id;
+    ran_ue_t *ran_ue = NULL;
+
+    NGAP_SuccessfulOutcome_t *successfulOutcome = NULL;
+    NGAP_UERadioCapabilityCheckResponse_t *UERadioCapabilityCheckResponse = NULL;
+
+    NGAP_UERadioCapabilityCheckResponseIEs_t *ie = NULL;
+    NGAP_AMF_UE_NGAP_ID_t *AMF_UE_NGAP_ID = NULL;
+    NGAP_RAN_UE_NGAP_ID_t *RAN_UE_NGAP_ID = NULL;
+    NGAP_IMSVoiceSupportIndicator_t	*IMSVoiceSupportIndicator = NULL;
+
+    ogs_assert(gnb);
+    ogs_assert(gnb->sctp.sock);
+
+    ogs_assert(message);
+    successfulOutcome = message->choice.successfulOutcome;
+    ogs_assert(successfulOutcome);
+    UERadioCapabilityCheckResponse =
+        &successfulOutcome->value.choice.UERadioCapabilityCheckResponse;
+    ogs_assert(UERadioCapabilityCheckResponse);
+
+    ogs_warn("UERadioCapabilityCheckResponse");
+
+    for (i = 0;
+            i < UERadioCapabilityCheckResponse->protocolIEs.list.count; i++) {
+        ie = UERadioCapabilityCheckResponse->protocolIEs.list.array[i];
+        switch (ie->id) {
+        case NGAP_ProtocolIE_ID_id_AMF_UE_NGAP_ID:
+            AMF_UE_NGAP_ID = &ie->value.choice.AMF_UE_NGAP_ID;
+            break;
+        case NGAP_ProtocolIE_ID_id_RAN_UE_NGAP_ID:
+            RAN_UE_NGAP_ID = &ie->value.choice.RAN_UE_NGAP_ID;
+            break;
+        case NGAP_ProtocolIE_ID_id_IMSVoiceSupportIndicator:
+            IMSVoiceSupportIndicator = &ie->value.choice.IMSVoiceSupportIndicator;
+            break;
+        default:
+            break;
+        }
+    }
+
+    ogs_debug("    IP[%s] RAN_ID[%d]",
+            OGS_ADDR(gnb->sctp.addr, buf), gnb->gnb_id);
+
+    if (!AMF_UE_NGAP_ID) {
+        ogs_error("No AMF_UE_NGAP_ID");
+        r = ngap_send_error_indication(gnb, (uint64_t *)RAN_UE_NGAP_ID, NULL,
+                NGAP_Cause_PR_protocol, NGAP_CauseProtocol_semantic_error);
+        ogs_expect(r == OGS_OK);
+        ogs_assert(r != OGS_ERROR);
+        return;
+    }
+
+    // Parse AMF_UE_NGAP_ID
+    if (asn_INTEGER2uint64(AMF_UE_NGAP_ID, &amf_ue_ngap_id) != 0) {
+        ogs_error("Invalid AMF_UE_NGAP_ID");
+        r = ngap_send_error_indication(gnb, (uint64_t *)RAN_UE_NGAP_ID, NULL,
+                NGAP_Cause_PR_protocol, NGAP_CauseProtocol_semantic_error);
+        ogs_expect(r == OGS_OK);
+        ogs_assert(r != OGS_ERROR);
+        return;
+    }
+
+    if (!RAN_UE_NGAP_ID) {
+        ogs_error("No RAN_UE_NGAP_ID");
+        r = ngap_send_error_indication(gnb, NULL, NULL,
+                NGAP_Cause_PR_protocol, NGAP_CauseProtocol_semantic_error);
+        ogs_expect(r == OGS_OK);
+        ogs_assert(r != OGS_ERROR);
+        return;
+    }
+
+    // Parse RAN_UE_NGAP_ID
+    ran_ue = ran_ue_find_by_ran_ue_ngap_id(gnb, *RAN_UE_NGAP_ID);
+    if (!ran_ue) {
+        ogs_error("No RAN UE Context : RAN_UE_NGAP_ID[%lld]",
+                (long long)*RAN_UE_NGAP_ID);
+        r = ngap_send_error_indication(gnb, (uint64_t *)RAN_UE_NGAP_ID, NULL,
+                NGAP_Cause_PR_radioNetwork, NGAP_CauseRadioNetwork_unknown_local_UE_NGAP_ID);
+        ogs_expect(r == OGS_OK);
+        ogs_assert(r != OGS_ERROR);
+        return;
+    }
+
+    ogs_debug("    RAN_UE_NGAP_ID[%lld] AMF_UE_NGAP_ID[%lld]",
+            (long long)ran_ue->ran_ue_ngap_id,
+            (long long)ran_ue->amf_ue_ngap_id);
+
+    if (!IMSVoiceSupportIndicator) {
+        ogs_error("No IMSVoiceSupportIndicator");
+        r = ngap_send_error_indication(
+                gnb, &ran_ue->ran_ue_ngap_id, &ran_ue->amf_ue_ngap_id,
+                NGAP_Cause_PR_protocol, NGAP_CauseProtocol_semantic_error);
+        ogs_expect(r == OGS_OK);
+        ogs_assert(r != OGS_ERROR);
+        return;
+    }
+
+    // TODO: Parse IMSVoiceSupportIndicator
+
+    // NOTE (borieher): What should we do with IMSVoiceSupportIndicator?
+    //amf_ue = amf_ue_find_by_id(ran_ue->amf_ue_id);
+    //if (amf_ue)
+        //OGS_ASN_STORE_DATA(&amf_ue->ueRadioCapability, UERadioCapability);
 }

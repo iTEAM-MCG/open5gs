@@ -83,6 +83,7 @@ int ngap_send_error_indication2(
 int ngap_send_ng_reset_ack(
         amf_gnb_t *gnb,
         NGAP_UE_associatedLogicalNG_connectionList_t *partOfNG_Interface);
+int ngap_send_ue_radio_capability_check_request(amf_gnb_t *gnb, ran_ue_t *ran_ue);
 
 #ifdef __cplusplus
 }

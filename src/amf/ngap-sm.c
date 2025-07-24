@@ -156,6 +156,9 @@ void ngap_state_operational(ogs_fsm_t *s, amf_event_t *e)
             case NGAP_ProcedureCode_id_HandoverResourceAllocation:
                 ngap_handle_handover_request_ack(gnb, pdu);
                 break;
+            case NGAP_ProcedureCode_id_UERadioCapabilityCheck:
+                ngap_handle_ue_radio_capability_check_response(gnb, pdu);
+                break;
             default:
                 ogs_error("Not implemented(choice:%d, proc:%d)",
                         pdu->present, (int)successfulOutcome->procedureCode);

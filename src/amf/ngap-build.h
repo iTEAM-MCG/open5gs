@@ -74,6 +74,8 @@ ogs_pkbuf_t *ngap_build_downlink_ran_status_transfer(
     ran_ue_t *target_ue,
     NGAP_RANStatusTransfer_TransparentContainer_t *transfer);
 
+ogs_pkbuf_t *ngap_build_ue_radio_capability_check_request(ran_ue_t *target_ue);
+
 #ifdef __cplusplus
 }
 #endif

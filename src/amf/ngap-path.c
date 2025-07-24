@@ -743,3 +743,25 @@ int ngap_send_ng_reset_ack(
 
     return rv;
 }
+
+int ngap_send_ue_radio_capability_check_request(amf_gnb_t *gnb, ran_ue_t *ran_ue)
+{
+    int rv;
+    ogs_pkbuf_t *ngap_buffer;
+
+    ogs_assert(gnb);
+    ogs_assert(ran_ue);
+
+    ogs_warn("Sending UERadioCapabilityCheck request");
+
+    ngap_buffer = ngap_build_ue_radio_capability_check_request(ran_ue);
+    if (!ngap_buffer) {
+        ogs_error("ngap_build_ue_radio_capability_check_request() failed");
+        return OGS_ERROR;
+    }
+
+    rv = ngap_send_to_gnb(gnb, ngap_buffer, NGAP_NON_UE_SIGNALLING);
+    ogs_expect(rv == OGS_OK);
+
+    return rv;
+}
